@@ -1,0 +1,5 @@
+# Not needed inside the image (the project is mounted as a volume anyway)
+.git
+.env
+vendor
+logs/*.log

@@ -1,0 +1,5 @@
+.idea
+vendor
+
+# Local configuration with credentials (see .env.example)
+.env
