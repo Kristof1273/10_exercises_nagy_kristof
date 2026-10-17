@@ -8,14 +8,7 @@ use MEPDatabaseTask\fruits\Fruit;
 use MEPDatabaseTask\storage\exception\BoxFullException;
 use Psr\Log\LoggerInterface;
 
-/**
- * Shared storage logic for every kind of box.
- *
- * Concrete boxes decide which fruits they accept; everything else lives here once.
- *
- * The PSR-3 logger is a constructor dependency: the DI container injects it
- * (see config/container.php), the box never creates or looks it up itself.
- */
+
 abstract class AbstractBox implements BoxInterface
 {
     public const DEFAULT_CAPACITY = 10;
@@ -26,7 +19,7 @@ abstract class AbstractBox implements BoxInterface
     private int $capacity;
 
     protected function __construct(
-        private readonly LoggerInterface $logger,
+        private readonly LoggerInterface $logger, // stores $this->logger = $logger, constructor property promotion!!
         int $capacity = self::DEFAULT_CAPACITY
     ) {
         $this->setCapacity($capacity);

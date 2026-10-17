@@ -8,11 +8,7 @@ use MEPDatabaseTask\fruits\Fruit;
 use MEPDatabaseTask\storage\exception\FruitNotAllowedException;
 use Psr\Log\LoggerInterface;
 
-/**
- * A box that only accepts exotic fruits (anything implementing ExoticFruitInterface).
- *
- * It is a sibling of Box, not a child of it, so it is independent of the shared Box.
- */
+
 class ExoticBox extends AbstractBox
 {
     public function __construct(LoggerInterface $logger, int $capacity = self::DEFAULT_CAPACITY)

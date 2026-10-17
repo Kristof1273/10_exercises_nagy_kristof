@@ -15,5 +15,5 @@ use PDO;
  */
 interface ConnectionInterface
 {
-    public function getPdo(): PDO;
+    public function getPdo(): PDO; // DIP
 }

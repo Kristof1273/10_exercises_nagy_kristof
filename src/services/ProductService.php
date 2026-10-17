@@ -9,13 +9,7 @@ use MEPDatabaseTask\database\ConnectionInterface;
 use MEPDatabaseTask\models\Product;
 use PDO;
 
-/**
- * Handles every product operation with plain PDO.
- *
- * The connection is injected by the DI container (ConnectionInterface →
- * PdoConnection, configured from .env). All values are bound as parameters
- * of prepared statements, never concatenated into the SQL.
- */
+
 final class ProductService implements ProductServiceInterface
 {
     private const COLUMNS = 'id, name, category, description, created_at, updated_at';

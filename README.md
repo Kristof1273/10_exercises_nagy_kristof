@@ -133,3 +133,40 @@ nginx serves the project root, so `nginx.conf` answers 404 for `.env`, dotfiles,
 - The list now has pagination links, created/updated dates and an Update button per product.
 - Validation counts characters (`mb_strlen`) instead of bytes, so names with accented letters are accepted up to 64 characters.
 - Redirects after POST use `303 See Other` instead of `301`.
+
+
+
+
+
+
+personal notes:
+
+A request travels from the browser to nginx on port 8080, then to PHP-FPM, and finally to a page such as `index.php`.  
+Every page starts by loading `config/bootstrap.php`.  
+1 This file loads Composer's autoloader,
+2 then reads the `.env` file with phpdotenv.  
+[The values end up in `$_ENV` !!!!], (and because the loader is immutable, variables that are already set by the environment are not overwritten). The bootstrap checks that all required database variables exist and stops with a clear message if one is missing.  
+3 Finally, it builds the PHP-DI container from `config/container.php` and returns it.  
+=> As a result, the database credentials live in a single git-ignored `.env` file instead of being hard-coded in several files.
+
+The DI container works like a recipe book: it knows how to build each service and what to inject into it. In `config/container.php`, `env()` reads a value from `.env`, `factory()` builds an object with custom code, [`get()` maps an interface to a concrete implementation, and `autowire()` builds an object from its constructor type hints, while `constructorParameter()` sets a single argument explicitly.]
+
+~~~php
+Box::class => autowire()
+    ->constructorParameter('logger', get('logger.box'))
+~~~
+Services are shared within a request. `get()` always returns the same instance, while `make()` creates a new one every time.
+
+In the first part of the exercise, Monolog is configured in the container as the PSR-3 logger. It has a channel name, a processor that fills placeholders such as `{count}` with real values, and two handlers: one writes to stderr, the other to `logs/app.log`. A second definition, `logger.box`, provides the same logger under the channel name "box". The container passes this logger to the `Box` constructor. `Box` hands it to its parent class `AbstractBox` with `parent::__construct()`, and `AbstractBox` stores it in a property. Every call to `getCount()` writes "The box currently contains x pieces of fruits" at INFO level and then returns the count. Internal checks such as `isFull()` call `count()` directly, so only real external calls are logged. Box is no longer a singleton, because its private constructor could not receive any dependencies. The container now guarantees a single shared instance instead.
+
+In the second part, `PdoConnection` handles the database connection. It receives its parameters from the container and knows nothing about `.env` itself. It connects lazily on first use and then reuses the same connection. It turns SQL errors into exceptions, returns rows as associative arrays and uses native prepared statements. If the connection fails, it throws a new exception without the original one, so the password cannot leak through the stack trace. The class is backed by `ConnectionInterface`, which makes the connection replaceable, for example with an SQLite database for tests, without touching any code that uses it.
+
+`ProductServiceInterface` defines the contract for all product operations: saving, updating, fetching one product, listing a page of ten products and counting them. `ProductService` implements this contract with PDO prepared statements. Because the SQL text and the values are sent separately, user input can never become part of the query, which prevents SQL injection. Pagination uses `LIMIT` and `OFFSET` with integer binding, and `Product::fromRow()` converts database rows into `Product` objects in one place. The service replaces the earlier `ProductRepository` and the connections that every page used to create on its own.
+
+The pages only ask the container for the interface. `index.php` calculates the number of pages, keeps the requested page within range and shows messages selected by fixed keys, so a URL cannot inject its own text. `save-process.php` validates the form with `ProductForm`, creates a `Product`, saves it and redirects with status 303. This follows the Post/Redirect/Get pattern, so refreshing the page does not submit the form again. `update-process.php` works the same way, but first checks that the product exists. `ProductForm` counts lengths in characters with `mb_strlen`, so names with accented letters are measured correctly. The `db_init.php` script creates the products table only if it is missing, and inserts 25 sample products only into an empty table, inside a transaction. It uses the same connection from the container, so it reads the same `.env` settings.
+
+For the Extra Mile, Doctrine DBAL adds a layer on top of PDO with connection management and a QueryBuilder. `DbalProductService` implements the same `ProductServiceInterface` using that QueryBuilder. The `DB_LAYER` setting in `.env` tells the container whether to provide the PDO or the DBAL implementation. None of the pages had to change, because they depend only on the interface.
+
+The application runs in three Docker containers: PHP-FPM, nginx on port 8080 and MySQL, which is reachable from the host on port 3307. Inside the Docker network the containers find each other by service name, so the database host is `db` and the port is 3306. The Dockerfile adds Composer and gives the `www-data` user the ID 1000, so PHP can write the log file in the mounted project folder. Because the project root is also the web root, nginx returns 404 for `.env`, `config/`, `src/`, `vendor/` and `logs/`, so these files can never be downloaded through the browser.
+
+Two core ideas run through the whole project. Dependency Injection is a technique: a class receives its dependencies from outside instead of creating them itself. The Dependency Inversion Principle is a design rule: classes should depend on abstractions such as interfaces, not on concrete classes. A `Box` that receives a `LoggerInterface` follows both. A `Box` that receives a concrete `Monolog\Logger` uses injection, but still depends on one specific implementation. Monolog is simply one implementation of the PSR-3 `LoggerInterface` standard, and the interfaces in this project hide where a dependency comes from, so it can be replaced without changing the code that uses it.
