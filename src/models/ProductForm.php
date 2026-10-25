@@ -17,15 +17,15 @@ class ProductForm
     }
 
     public function validate(): bool {
-        if (empty($this->name) || empty($this->category)) {
+        if ($this->name === "" || $this->category === "") {
             return false;
         }
 
-        if (strlen($this->name) > 64 || strlen($this->category) > 64) {
+        if (mb_strlen($this->name) > 64 || mb_strlen($this->category) > 64) {
             return false;
         }
 
-        if (strlen($this->description) > 500) {
+        if (mb_strlen($this->description) > 500) {
             return false;
         }
 

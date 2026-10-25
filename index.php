@@ -14,17 +14,29 @@ $password = 'root';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbName;charset=utf8", $user, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); 
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Database connection error: " . $e->getMessage());
 }
 
 $repository = new ProductRepository($pdo);
 
+// Pagination
+$totalProducts = $repository->count();
+$totalPages = max(1, (int) ceil($totalProducts / ProductRepository::PER_PAGE));
+
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 if ($page < 1) $page = 1;
+if ($page > $totalPages) $page = $totalPages;
 
+/** @var Product[] $products */
 $products = $repository->getAll($page);
+
+$errorMessages = [
+    'invalid_data' => 'Invalid data, the product was not saved. Name and category are required (max. 64 characters each), the description can be at most 500 characters long.',
+];
+$error = isset($_GET['error']) && is_string($_GET['error']) ? $_GET['error'] : null;
+$errorMessage = $error !== null ? ($errorMessages[$error] ?? null) : null;
 
 ?>
 <!doctype html>
@@ -59,31 +71,75 @@ $products = $repository->getAll($page);
         <div class="shadow-lg p-3 mb-5 bg-body rounded">
             <h2>Products</h2>
             <hr>
+
+            <?php if ($errorMessage !== null): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($errorMessage) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+
             <div id="products">
-                
+
                 <?php if (empty($products)): ?>
                     <div class="alert alert-info">No products available.</div>
                 <?php else: ?>
-                    <table class="table table-striped table-hover">
+                    <table class="table table-striped table-hover align-middle">
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>name</th>
                                 <th>category</th>
                                 <th>description</th>
+                                <th>created at</th>
+                                <th>updated at</th>
+                                <th>actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($products as $product): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($product->id ?? '') ?></td>
+                                    <td><?= htmlspecialchars((string) $product->id) ?></td>
                                     <td><?= htmlspecialchars($product->name) ?></td>
                                     <td><?= htmlspecialchars($product->category) ?></td>
                                     <td><?= htmlspecialchars($product->description) ?></td>
+                                    <td><?= htmlspecialchars($product->createdAt ?? '') ?></td>
+                                    <td>
+                                        <?php if ($product->updatedAt !== null): ?>
+                                            <?= htmlspecialchars($product->updatedAt) ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">&ndash;</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <a class="btn btn-sm btn-primary"
+                                           href="update-product-page.php?id=<?= urlencode((string) $product->id) ?>">Update</a>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+
+                    <?php if ($totalPages > 1): ?>
+                        <nav aria-label="Product list pages">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="index.php?page=<?= $page - 1 ?>">Previous</a>
+                                </li>
+
+                                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                                    <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+                                        <a class="page-link" href="index.php?page=<?= $i ?>"
+                                           <?= $i === $page ? 'aria-current="page"' : '' ?>><?= $i ?></a>
+                                    </li>
+                                <?php endfor; ?>
+
+                                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="index.php?page=<?= $page + 1 ?>">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    <?php endif; ?>
                 <?php endif; ?>
 
             </div>
